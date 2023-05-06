@@ -86,7 +86,6 @@ def get_documents(file_src):
                     text_raw = f.read()
         except Exception as e:
             logging.error(f"Error loading file: {filename}")
-            pass
         text = add_space(text_raw)
         # text = block_split(text)
         # documents += text
@@ -109,11 +108,7 @@ def construct_index(
     from langchain.embeddings.huggingface import HuggingFaceEmbeddings
     from llama_index import GPTSimpleVectorIndex, ServiceContext, LangchainEmbedding, OpenAIEmbedding
 
-    if api_key:
-        os.environ["OPENAI_API_KEY"] = api_key
-    else:
-        # 由于一个依赖的愚蠢的设计，这里必须要有一个API KEY
-        os.environ["OPENAI_API_KEY"] = "sk-xxxxxxx"
+    os.environ["OPENAI_API_KEY"] = api_key if api_key else "sk-xxxxxxx"
     chunk_size_limit = None if chunk_size_limit == 0 else chunk_size_limit
     embedding_limit = None if embedding_limit == 0 else embedding_limit
     separator = " " if separator == "" else separator

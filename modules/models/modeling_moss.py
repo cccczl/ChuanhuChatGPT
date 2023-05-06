@@ -204,11 +204,7 @@ class MossAttention(nn.Module):
             key = torch.cat((past_key, key), dim=-2)
             value = torch.cat((past_value, value), dim=-2)
 
-        if use_cache is True:
-            present = (key, value)
-        else:
-            present = None
-
+        present = (key, value) if use_cache is True else None
         # compute self-attention: V x Softmax(QK^T)
         attn_output, attn_weights = self._attn(query, key, value, attention_mask, head_mask)
 
@@ -279,12 +275,11 @@ class MossBlock(nn.Module):
         feed_forward_hidden_states = self.mlp(hidden_states)
         hidden_states = attn_output + feed_forward_hidden_states + residual
 
-        if use_cache:
-            outputs = (hidden_states,) + outputs
-        else:
-            outputs = (hidden_states,) + outputs[1:]
-
-        return outputs  # hidden_states, present, (attentions)
+        return (
+            (hidden_states,) + outputs
+            if use_cache
+            else (hidden_states,) + outputs[1:]
+        )
 
 
 class MossPreTrainedModel(PreTrainedModel):
@@ -506,13 +501,12 @@ class MossModel(MossPreTrainedModel):
 
         output_shape = input_shape + (hidden_states.size(-1),)
 
-        if self.gradient_checkpointing and self.training:
-            if use_cache:
-                logger.warning_once(
-                    "`use_cache=True` is incompatible with `config.gradient_checkpointing=True`. Setting "
-                    "`use_cache=False`..."
-                )
-                use_cache = False
+        if self.gradient_checkpointing and self.training and use_cache:
+            logger.warning_once(
+                "`use_cache=True` is incompatible with `config.gradient_checkpointing=True`. Setting "
+                "`use_cache=False`..."
+            )
+            use_cache = False
 
         presents = () if use_cache else None
         all_self_attentions = () if output_attentions else None
@@ -563,14 +557,24 @@ class MossModel(MossPreTrainedModel):
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
-        if not return_dict:
-            return tuple(v for v in [hidden_states, presents, all_hidden_states, all_self_attentions] if v is not None)
-
-        return BaseModelOutputWithPast(
-            last_hidden_state=hidden_states,
-            past_key_values=presents,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attentions,
+        return (
+            BaseModelOutputWithPast(
+                last_hidden_state=hidden_states,
+                past_key_values=presents,
+                hidden_states=all_hidden_states,
+                attentions=all_self_attentions,
+            )
+            if return_dict
+            else tuple(
+                v
+                for v in [
+                    hidden_states,
+                    presents,
+                    all_hidden_states,
+                    all_self_attentions,
+                ]
+                if v is not None
+            )
         )
 
 

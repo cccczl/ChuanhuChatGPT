@@ -76,18 +76,14 @@ my_api_key = os.environ.get("OPENAI_API_KEY", my_api_key)
 xmchat_api_key = config.get("xmchat_api_key", "")
 os.environ["XMCHAT_API_KEY"] = xmchat_api_key
 
-render_latex = config.get("render_latex", False)
-
-if render_latex:
+if render_latex := config.get("render_latex", False):
     os.environ["RENDER_LATEX"] = "yes"
 else:
     os.environ["RENDER_LATEX"] = "no"
 
 usage_limit = os.environ.get("USAGE_LIMIT", config.get("usage_limit", 120))
 
-## 多账户机制
-multi_api_key = config.get("multi_api_key", False) # 是否开启多账户机制
-if multi_api_key:
+if multi_api_key := config.get("multi_api_key", False):
     api_key_list = config.get("api_key_list", [])
     if len(api_key_list) == 0:
         logging.error("多账号模式已开启，但api_key_list为空，请检查config.json")
@@ -97,9 +93,7 @@ if multi_api_key:
 auth_list = config.get("users", []) # 实际上是使用者的列表
 authflag = len(auth_list) > 0  # 是否开启认证的状态值，改为判断auth_list长度
 
-# 处理自定义的api_host，优先读环境变量的配置，如果存在则自动装配
-api_host = os.environ.get("api_host", config.get("api_host", ""))
-if api_host:
+if api_host := os.environ.get("api_host", config.get("api_host", "")):
     shared.state.set_api_host(api_host)
 
 @contextmanager
@@ -155,7 +149,7 @@ def retrieve_proxy(proxy=None):
 
 ## 处理advance docs
 advance_docs = defaultdict(lambda: defaultdict(dict))
-advance_docs.update(config.get("advance_docs", {}))
+advance_docs |= config.get("advance_docs", {})
 def update_doc_config(two_column_pdf):
     global advance_docs
     advance_docs["pdf"]["two_column"] = two_column_pdf
@@ -166,13 +160,9 @@ def update_doc_config(two_column_pdf):
 server_name = config.get("server_name", None)
 server_port = config.get("server_port", None)
 if server_name is None:
-    if dockerflag:
-        server_name = "0.0.0.0"
-    else:
-        server_name = "127.0.0.1"
-if server_port is None:
-    if dockerflag:
-        server_port = 7860
+    server_name = "0.0.0.0" if dockerflag else "127.0.0.1"
+if server_port is None and dockerflag:
+    server_port = 7860
 
 assert server_port is None or type(server_port) == int, "要求port设置为int类型"
 

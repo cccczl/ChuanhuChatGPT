@@ -93,9 +93,11 @@ os.makedirs("models", exist_ok=True)
 os.makedirs("lora", exist_ok=True)
 os.makedirs("history", exist_ok=True)
 for dir_name in os.listdir("models"):
-    if os.path.isdir(os.path.join("models", dir_name)):
-        if dir_name not in MODELS:
-            MODELS.append(dir_name)
+    if (
+        os.path.isdir(os.path.join("models", dir_name))
+        and dir_name not in MODELS
+    ):
+        MODELS.append(dir_name)
 
 MODEL_TOKEN_LIMIT = {
     "gpt-3.5-turbo": 4096,
