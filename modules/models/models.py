@@ -88,7 +88,7 @@ class OpenAIClient(BaseLLMModel):
             try:
                 usage_data = self._get_billing_data(usage_url)
             except Exception as e:
-                logging.error(f"获取API使用情况失败:" + str(e))
+                logging.error(f"获取API使用情况失败:{str(e)}")
                 return i18n("**获取API使用情况失败**")
             # rounded_usage = "{:.5f}".format(usage_data["total_usage"] / 100)
             rounded_usage = round(usage_data["total_usage"] / 100, 5)
@@ -104,13 +104,9 @@ class OpenAIClient(BaseLLMModel):
                 <div style="display: flex; justify-content: space-between;"><span>${rounded_usage}</span><span>${usage_limit}</span></div>
                 """
         except requests.exceptions.ConnectTimeout:
-            status_text = (
-                STANDARD_ERROR_MSG + CONNECTION_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
-            )
-            return status_text
+            return STANDARD_ERROR_MSG + CONNECTION_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
         except requests.exceptions.ReadTimeout:
-            status_text = STANDARD_ERROR_MSG + READ_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
-            return status_text
+            return STANDARD_ERROR_MSG + READ_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -125,13 +121,7 @@ class OpenAIClient(BaseLLMModel):
         openai_api_key = self.api_key
         system_prompt = self.system_prompt
         history = self.history
-        logging.debug(colorama.Fore.YELLOW +
-                      f"{history}" + colorama.Fore.RESET)
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {openai_api_key}",
-        }
-
+        logging.debug(f"{colorama.Fore.YELLOW}{history}{colorama.Fore.RESET}")
         if system_prompt is not None:
             history = [construct_system(system_prompt), *history]
 
@@ -155,15 +145,15 @@ class OpenAIClient(BaseLLMModel):
         if self.user_identifier:
             payload["user"] = self.user_identifier
 
-        if stream:
-            timeout = TIMEOUT_STREAMING
-        else:
-            timeout = TIMEOUT_ALL
-
+        timeout = TIMEOUT_STREAMING if stream else TIMEOUT_ALL
         # 如果有自定义的api-host，使用自定义host发送请求，否则使用默认设置发送请求
         if shared.state.completion_url != COMPLETION_URL:
             logging.info(f"使用自定义API URL: {shared.state.completion_url}")
 
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {openai_api_key}",
+        }
         with retrieve_proxy():
             try:
                 response = requests.post(
@@ -192,8 +182,7 @@ class OpenAIClient(BaseLLMModel):
             )
 
         if response.status_code == 200:
-            data = response.json()
-            return data
+            return response.json()
         else:
             raise Exception(
                 f"API request failed with status code {response.status_code}: {response.text}"
@@ -241,16 +230,11 @@ class ChatGLM_Client(BaseLLMModel):
                 model_dirs = os.listdir("models")
                 if model_name in model_dirs:
                     model_path = f"models/{model_name}"
-            if model_path is not None:
-                model_source = model_path
-            else:
-                model_source = f"THUDM/{model_name}"
+            model_source = model_path if model_path is not None else f"THUDM/{model_name}"
             CHATGLM_TOKENIZER = AutoTokenizer.from_pretrained(
                 model_source, trust_remote_code=True
             )
-            quantified = False
-            if "int4" in model_name:
-                quantified = True
+            quantified = "int4" in model_name
             model = AutoModel.from_pretrained(
                 model_source, trust_remote_code=True
             )
@@ -363,9 +347,7 @@ class LLaMA_Client(BaseLLMModel):
                 history.append(f"{instruction}Input: {x['content']}")
             else:
                 history.append(f"Output: {x['content']}")
-        context = "\n\n".join(history)
-        context += "\n\nOutput: "
-        return context
+        return "\n\n".join(history) + "\n\nOutput: "
 
     def get_answer_at_once(self):
         context = self._get_llama_style_input()
@@ -400,7 +382,7 @@ class LLaMA_Client(BaseLLMModel):
                 temperature=self.temperature,
             )
             response = output_dataset.to_dict()["instances"][0]["text"]
-            if response == "" or response == self.end_string:
+            if response in ["", self.end_string]:
                 break
             partial_text += response
             yield partial_text
@@ -447,10 +429,7 @@ class XMChat(BaseLLMModel):
         img.save(buffer, format='JPEG')
         binary_image = buffer.getvalue()
 
-        # 对二进制数据进行Base64编码
-        base64_image = base64.b64encode(binary_image).decode('utf-8')
-
-        return base64_image
+        return base64.b64encode(binary_image).decode('utf-8')
 
     def try_read_image(self, filepath):
         def is_image_file(filepath):
@@ -492,7 +471,7 @@ class XMChat(BaseLLMModel):
         fake_inputs = real_inputs
         display_append = ""
         limited_context = False
-        return limited_context, fake_inputs, display_append, real_inputs, chatbot
+        return limited_context, fake_inputs, display_append, fake_inputs, chatbot
 
     def handle_file_upload(self, files, chatbot):
         """if the model accepts multi modal input, implement this function"""
@@ -579,7 +558,7 @@ def get_model(
                 lora_choices = get_file_names(
                     "lora", plain=True, filetypes=[""])
             lora_choices = ["No LoRA"] + lora_choices
-        elif model_type == ModelType.LLaMA and lora_model_path != "":
+        elif model_type == ModelType.LLaMA:
             logging.info(f"正在加载LLaMA模型: {model_name} + {lora_model_path}")
             dont_change_lora_selector = True
             if lora_model_path == "No LoRA":
@@ -622,22 +601,22 @@ if __name__ == "__main__":
     chatbot = []
     stream = False
     # 测试账单功能
-    logging.info(colorama.Back.GREEN + "测试账单功能" + colorama.Back.RESET)
+    logging.info(f"{colorama.Back.GREEN}测试账单功能{colorama.Back.RESET}")
     logging.info(client.billing_info())
     # 测试问答
-    logging.info(colorama.Back.GREEN + "测试问答" + colorama.Back.RESET)
+    logging.info(f"{colorama.Back.GREEN}测试问答{colorama.Back.RESET}")
     question = "巴黎是中国的首都吗？"
     for i in client.predict(inputs=question, chatbot=chatbot, stream=stream):
         logging.info(i)
     logging.info(f"测试问答后history : {client.history}")
     # 测试记忆力
-    logging.info(colorama.Back.GREEN + "测试记忆力" + colorama.Back.RESET)
+    logging.info(f"{colorama.Back.GREEN}测试记忆力{colorama.Back.RESET}")
     question = "我刚刚问了你什么问题？"
     for i in client.predict(inputs=question, chatbot=chatbot, stream=stream):
         logging.info(i)
     logging.info(f"测试记忆力后history : {client.history}")
     # 测试重试功能
-    logging.info(colorama.Back.GREEN + "测试重试功能" + colorama.Back.RESET)
+    logging.info(f"{colorama.Back.GREEN}测试重试功能{colorama.Back.RESET}")
     for i in client.retry(chatbot=chatbot, stream=stream):
         logging.info(i)
     logging.info(f"重试后history : {client.history}")
